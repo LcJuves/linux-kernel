@@ -1,4 +1,4 @@
-<a href="https://www.kernel.org"><img src="https://web-frontend.xyz/assets/svg/Linux.svg" height="200" align="right"></a>
+<a href="https://www.kernel.org"><img src="https://web-frontend.xyz/assets/svg/Linux.svg" height="180" align="right"></a>
 # Linux kernel
 
 ```
@@ -7,7 +7,7 @@ be rendered in a number of formats, like HTML and PDF. Please read
 Documentation/admin-guide/README.rst first.
 
 In order to build the documentation, use ``make htmldocs`` or
-``make pdfdocs``.  The formatted documentation can also be read online at:
+`make pdfdocs`.  The formatted documentation can also be read online at:
 
     https://www.kernel.org/doc/html/latest/
 
