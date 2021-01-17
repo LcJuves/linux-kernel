@@ -1,4 +1,4 @@
-<a href="https://www.kernel.org"><img src="https://www.kernel.org/theme/images/logos/tux.png" height="150" align="right"></a>
+<a href="https://www.kernel.org"><img src="https://lf-master-project-logos-prod.s3.us-east-2.amazonaws.com/korg.svg" height="150" align="right"></a>
 # Linux kernel
 
 There are several guides for kernel developers and users. These guides can
