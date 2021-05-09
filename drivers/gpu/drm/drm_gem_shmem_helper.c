@@ -51,13 +51,17 @@ __drm_gem_shmem_create(struct drm_device *dev, size_t size, bool private)
 	if (!obj)
 		return ERR_PTR(-ENOMEM);
 
+	shmem = to_drm_gem_shmem_obj(obj);
+
 	if (!obj->funcs)
 		obj->funcs = &drm_gem_shmem_funcs;
 
-	if (private)
+	if (private) {
 		drm_gem_private_object_init(dev, obj, size);
-	else
+		shmem->map_wc = false; /* dma-buf mappings use always writecombine */
+	} else {
 		ret = drm_gem_object_init(dev, obj, size);
+	}
 	if (ret)
 		goto err_free;
 
@@ -65,7 +69,6 @@ __drm_gem_shmem_create(struct drm_device *dev, size_t size, bool private)
 	if (ret)
 		goto err_release;
 
-	shmem = to_drm_gem_shmem_obj(obj);
 	mutex_init(&shmem->pages_lock);
 	mutex_init(&shmem->vmap_lock);
 	INIT_LIST_HEAD(&shmem->madv_list);
@@ -284,7 +287,7 @@ static int drm_gem_shmem_vmap_locked(struct drm_gem_shmem_object *shmem, struct 
 		if (ret)
 			goto err_zero_use;
 
-		if (!shmem->map_cached)
+		if (shmem->map_wc)
 			prot = pgprot_writecombine(prot);
 		shmem->vaddr = vmap(shmem->pages, obj->size >> PAGE_SHIFT,
 				    VM_MAP, prot);
@@ -354,13 +357,14 @@ static void drm_gem_shmem_vunmap_locked(struct drm_gem_shmem_object *shmem,
 	if (--shmem->vmap_use_count > 0)
 		return;
 
-	if (obj->import_attach)
+	if (obj->import_attach) {
 		dma_buf_vunmap(obj->import_attach->dmabuf, map);
-	else
+	} else {
 		vunmap(shmem->vaddr);
+		drm_gem_shmem_put_pages(shmem);
+	}
 
 	shmem->vaddr = NULL;
-	drm_gem_shmem_put_pages(shmem);
 }
 
 /*
@@ -477,33 +481,6 @@ bool drm_gem_shmem_purge(struct drm_gem_object *obj)
 EXPORT_SYMBOL(drm_gem_shmem_purge);
 
 /**
- * drm_gem_shmem_create_object_cached - Create a shmem buffer object with
- *                                      cached mappings
- * @dev: DRM device
- * @size: Size of the object to allocate
- *
- * By default, shmem buffer objects use writecombine mappings. This
- * function implements struct drm_driver.gem_create_object for shmem
- * buffer objects with cached mappings.
- *
- * Returns:
- * A struct drm_gem_shmem_object * on success or NULL negative on failure.
- */
-struct drm_gem_object *
-drm_gem_shmem_create_object_cached(struct drm_device *dev, size_t size)
-{
-	struct drm_gem_shmem_object *shmem;
-
-	shmem = kzalloc(sizeof(*shmem), GFP_KERNEL);
-	if (!shmem)
-		return NULL;
-	shmem->map_cached = true;
-
-	return &shmem->base;
-}
-EXPORT_SYMBOL(drm_gem_shmem_create_object_cached);
-
-/**
  * drm_gem_shmem_dumb_create - Create a dumb shmem buffer object
  * @file: DRM file structure to create the dumb buffer for
  * @dev: DRM device
@@ -549,14 +526,28 @@ static vm_fault_t drm_gem_shmem_fault(struct vm_fault *vmf)
 	struct drm_gem_object *obj = vma->vm_private_data;
 	struct drm_gem_shmem_object *shmem = to_drm_gem_shmem_obj(obj);
 	loff_t num_pages = obj->size >> PAGE_SHIFT;
+	vm_fault_t ret;
 	struct page *page;
+	pgoff_t page_offset;
 
-	if (vmf->pgoff >= num_pages || WARN_ON_ONCE(!shmem->pages))
-		return VM_FAULT_SIGBUS;
+	/* We don't use vmf->pgoff since that has the fake offset */
+	page_offset = (vmf->address - vma->vm_start) >> PAGE_SHIFT;
 
-	page = shmem->pages[vmf->pgoff];
+	mutex_lock(&shmem->pages_lock);
 
-	return vmf_insert_page(vma, vmf->address, page);
+	if (page_offset >= num_pages ||
+	    WARN_ON_ONCE(!shmem->pages) ||
+	    shmem->madv < 0) {
+		ret = VM_FAULT_SIGBUS;
+	} else {
+		page = shmem->pages[page_offset];
+
+		ret = vmf_insert_page(vma, vmf->address, page);
+	}
+
+	mutex_unlock(&shmem->pages_lock);
+
+	return ret;
 }
 
 static void drm_gem_shmem_vm_open(struct vm_area_struct *vma)
@@ -605,9 +596,6 @@ int drm_gem_shmem_mmap(struct drm_gem_object *obj, struct vm_area_struct *vma)
 	struct drm_gem_shmem_object *shmem;
 	int ret;
 
-	/* Remove the fake offset */
-	vma->vm_pgoff -= drm_vma_node_start(&obj->vma_node);
-
 	if (obj->import_attach) {
 		/* Drop the reference drm_gem_mmap_obj() acquired.*/
 		drm_gem_object_put(obj);
@@ -626,7 +614,7 @@ int drm_gem_shmem_mmap(struct drm_gem_object *obj, struct vm_area_struct *vma)
 
 	vma->vm_flags |= VM_MIXEDMAP | VM_DONTEXPAND;
 	vma->vm_page_prot = vm_get_page_prot(vma->vm_flags);
-	if (!shmem->map_cached)
+	if (shmem->map_wc)
 		vma->vm_page_prot = pgprot_writecombine(vma->vm_page_prot);
 	vma->vm_ops = &drm_gem_shmem_vm_ops;
 

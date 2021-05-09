@@ -136,6 +136,7 @@ mmhub_v2_0_print_l2_protection_fault_status(struct amdgpu_device *adev,
 		break;
 	case CHIP_SIENNA_CICHLID:
 	case CHIP_NAVY_FLOUNDER:
+	case CHIP_DIMGREY_CAVEFISH:
 		mmhub_cid = mmhub_client_ids_sienna_cichlid[cid][rw];
 		break;
 	default:
@@ -209,8 +210,7 @@ static void mmhub_v2_0_init_system_aperture_regs(struct amdgpu_device *adev)
 	}
 
 	/* Set default page address. */
-	value = adev->vram_scratch.gpu_addr - adev->gmc.vram_start +
-		adev->vm_manager.vram_base_offset;
+	value = amdgpu_gmc_vram_mc2pa(adev, adev->vram_scratch.gpu_addr);
 	WREG32_SOC15(MMHUB, 0, mmMMMC_VM_SYSTEM_APERTURE_DEFAULT_ADDR_LSB,
 		     (u32)(value >> 12));
 	WREG32_SOC15(MMHUB, 0, mmMMMC_VM_SYSTEM_APERTURE_DEFAULT_ADDR_MSB,
@@ -688,7 +688,6 @@ static void mmhub_v2_0_get_clockgating(struct amdgpu_device *adev, u32 *flags)
 }
 
 const struct amdgpu_mmhub_funcs mmhub_v2_0_funcs = {
-	.ras_late_init = amdgpu_mmhub_ras_late_init,
 	.init = mmhub_v2_0_init,
 	.gart_enable = mmhub_v2_0_gart_enable,
 	.set_fault_enable_default = mmhub_v2_0_set_fault_enable_default,

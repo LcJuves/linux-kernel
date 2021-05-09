@@ -35,7 +35,6 @@ problems and bugs in particular.
    :maxdepth: 1
 
    reporting-issues
-   Reporting bugs (obsolete) <reporting-bugs>
    security-bugs
    bug-hunting
    bug-bisect
@@ -120,7 +119,6 @@ configure specific aspects of kernel behavior to your liking.
    unicode
    vga-softcursor
    video-output
-   wimax/index
    xfs
 
 .. only::  subproject and html

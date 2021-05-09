@@ -33,8 +33,6 @@
 #define CEDRUS_CAPABILITY_MPEG2_DEC	BIT(3)
 #define CEDRUS_CAPABILITY_VP8_DEC	BIT(4)
 
-#define CEDRUS_QUIRK_NO_DMA_OFFSET	BIT(0)
-
 enum cedrus_codec {
 	CEDRUS_CODEC_MPEG2,
 	CEDRUS_CODEC_H264,
@@ -58,7 +56,6 @@ enum cedrus_h264_pic_type {
 struct cedrus_control {
 	struct v4l2_ctrl_config cfg;
 	enum cedrus_codec	codec;
-	unsigned char		required:1;
 };
 
 struct cedrus_h264_run {
@@ -82,7 +79,7 @@ struct cedrus_h265_run {
 };
 
 struct cedrus_vp8_run {
-	const struct v4l2_ctrl_vp8_frame_header		*frame_params;
+	const struct v4l2_ctrl_vp8_frame		*frame_params;
 };
 
 struct cedrus_run {
@@ -168,7 +165,6 @@ struct cedrus_dec_ops {
 
 struct cedrus_variant {
 	unsigned int	capabilities;
-	unsigned int	quirks;
 	unsigned int	mod_rate;
 };
 
